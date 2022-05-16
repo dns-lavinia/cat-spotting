@@ -20,6 +20,10 @@ class Catbase:
         }
 
         self.firebase = pyrebase.initialize_app(firebaseConfig)
+        self.storage = self.firebase.storage()
+        self.db = self.firebase.database()
+
+        self.cloud_filename = getenv("CLOUD_FILENAME")
         self.fire_email = getenv("FIREBASE_EMAIL")
         self.fire_passw = getenv("FIREBASE_PASS")
 
@@ -43,11 +47,10 @@ class Catbase:
             print('data is empty')
             return
 
-        db = self.firebase.database()
-        db.child(table_name).push(data)
+        self.db.child(table_name).push(data)
 
 
-    def store_img(self, img):
+    def store_img(self, img, img_name):
         """ Add to firebase storage an image
 
         Parameters
@@ -55,12 +58,17 @@ class Catbase:
             img should be a path to a cat image from storage
         """
 
-        storage = self.firebase.storage()
-        img_path = 'images/img' + str(datetime.utcnow()) + '.jpg'
+        img_path = 'images/' + img_name
 
         # build path to image to be added
-        storage.child(img_path).put(img)
+        self.storage.child(img_path).put(img)
+
+    # def delete_from_table(self, table_name, data):
+
+    def download_file(self , src_filename, dst_filename):
+        cld_filename = self.cloud_filename + src_filename
+
+        self.storage.child(cld_filename).download(src_filename, dst_filename)
 
     # def query(self):
-    # def delete_from_table(self, table_name, data)
     # def get_img_from_storage():
