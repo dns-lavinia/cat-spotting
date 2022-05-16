@@ -1,18 +1,16 @@
 import numpy as np
+import asyncio
 import sys
 import cv2
-import asyncio
+
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
+from os import getenv
 from PIL import Image
 
 sys.path.append('../firebase-api/')
 
 import catbase
-
-
-# TODO: add these to an .env file
-CAT_IMG_PATH = 'catto.jpg'
-UC_CAT_IMG_PATH = 'uc_catto.jpg'
 
 
 def get_env_stats():
@@ -22,7 +20,7 @@ def get_env_stats():
 
 
 def get_cat_colors():
-    cat_img = Image.open(CAT_IMG_PATH)
+    cat_img = Image.open(getenv("CAT_IMG_PATH"))
 
     # convert to web palete
     reduced_img = cat_img.convert("P", palette=Image.Palette.WEB)
@@ -44,7 +42,7 @@ async def spot_cats():
     not send a lot of spam to firebase"""
 
     # additionally, or optionally, the extended frontalcatface model can be used
-    frontal_face_cascade = cv2.CascadeClassifier('haarcascade_frontalcatface.xml')
+    frontal_face_cascade = cv2.CascadeClassifier(getenv('FRONTAL_CATFACE_MODEL'))
 
     # make sure not to send more than one (set of) entry to the db every x mins
     time_later = datetime.utcnow()
@@ -68,7 +66,6 @@ async def spot_cats():
             if datetime.utcnow() < time_later:
                 break
             else:
-                # uncomment this for debugging
                 cv2.rectangle(img,(x,y),(x+w,y+h),(255,255,0),2)
                 roi_color = img[(y+2):y+h-2, (x+2):x+w-2]
 
@@ -108,12 +105,14 @@ async def gather_send_data(fb, img, cat_face):
     - timestamp
     - cat colors
     - temperature for given location (default = Timisoara) or from sensor"""
+    cat_img_path = getenv('CAT_IMG_PATH')
+    uc_cat_path = getenv('UC_CAT_IMG_PATH')
 
     # write cat picture
-    cv2.imwrite(CAT_IMG_PATH, cat_face)
+    cv2.imwrite(cat_img_path, cat_face)
 
     # write uncropped cat picture
-    cv2.imwrite(UC_CAT_IMG_PATH, img)
+    cv2.imwrite(uc_cat_path, img)
 
     # timestamp
     time_now = datetime.utcnow()
@@ -136,13 +135,16 @@ async def gather_send_data(fb, img, cat_face):
 
     # upload to firebase
     # upload the image
-    fb.store_img(UC_CAT_IMG_PATH, img_filename)
+    fb.store_img(uc_cat_path, img_filename)
 
     # upload data to instants table
-    fb.push_to_table('instants_tb', data)
+    fb.push_to_table(getenv('INSTANTS_TABLE'), data)
 
 
 async def main():
+    # load the variable from .env
+    load_dotenv()
+
     fb = catbase.Catbase()
 
     async for img, cat_img in spot_cats():

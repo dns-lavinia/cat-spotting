@@ -1,9 +1,16 @@
 import asyncio
 import discord
+import sys
+
 from datetime import datetime, time, timedelta
 from discord.ext import commands
 
 import bot_constants
+
+sys.path.append('../firebase-api/')
+
+import catbase
+
 
 # consider the prefix for the commands to be '!'
 bot = commands.Bot(command_prefix='!')
@@ -11,14 +18,25 @@ bot = commands.Bot(command_prefix='!')
 ################################################################################
 ##### BOT EVENTS
 
-# This function is going to be called once a day
-# For every daily message, send some statistics
-async def send_stats():
-	print("Sending statistics to server")
+async def once_a_day_stats(fb, target_time):
+	"""once_a_day_stats is going to be called once a day, and send some statistics
+
+	Parameters
+	----------
+	fb
+		Catbase object used to manipulate firebase data"""
+
+	# uncomment for debugging
+	# print("Sending statistics to server")
+	yesterday = datetime.combine(target_time.date() - timedelta(days=1), time(0))
+	tb_name = bot_constants.INSTANTS_TABLE
+
+	total_cats_nb = fb.len_for_table(tb_name)
+	partial_cats_nb = fb.len_for_table(tb_name, yesterday, target_time)
 
 	message = f"[{datetime.now().date()}]\n" +\
-				"- Total 🐈 spotted: 0\n" +\
-				"- 🐈 spotted in the last 24 hours: 0\n" +\
+				f"- Total 🐈 spotted: {total_cats_nb}\n" +\
+				f"- 🐈 spotted in the last 24 hours: {partial_cats_nb}\n" +\
 				"- Temperature today: 25℃"
 
 	await bot.wait_until_ready()
@@ -27,7 +45,16 @@ async def send_stats():
 	await channel.send(message)
 
 
-async def cat_instant_stats():
+async def cat_instant_stats(fb):
+	"""cat_instant_stats is going to be called every few minutes, and send some
+	data, along a picture with the detected cat
+
+	Parameters
+	----------
+	fb
+		Catbase object used to manipulate firebase data"""
+	tb_name = bot_constants.INSTANTS_TABLE
+
 	message = f"[{datetime.now()}]\n" +\
 				"- Temperature: 30℃"
 
@@ -37,7 +64,7 @@ async def cat_instant_stats():
 	await channel.send(message)
 
 
-async def background_task():
+async def background_task(fb):
 	now = datetime.utcnow()
 
 	# If the first loop is going to start after the set time
@@ -60,7 +87,7 @@ async def background_task():
 		await asyncio.sleep(seconds_until_target)
 
 		# call the function that sends the stats to the channel
-		await once_a_day_stats()
+		await once_a_day_stats(fb, target_time)
 
 		tomorrow = datetime.combine(now.date() + timedelta(days=1), time(0))
 
@@ -71,7 +98,7 @@ async def background_task():
 		await asyncio.sleep(seconds)
 
 
-async def background_task_instants():
+async def background_task_instants(fb):
 	"""Check for new cat instants (new snaphsots of cats during the day) and
 	send a message with an image and some additional information"""
 
@@ -84,7 +111,7 @@ async def background_task_instants():
 		await asyncio.sleep(seconds_until_target)
 
 		# call the function that sends the stats to the channel
-		await cat_instant_stats()
+		await cat_instant_stats(fb)
 
 
 @bot.event
@@ -117,6 +144,8 @@ async def set_location(ctx, city):
 ################################################################################
 ##### RUN THE BOT
 if __name__ == "__main__":
-	bot.loop.create_task(background_task())
-	bot.loop.create_task(background_task_instants())
+	fb = catbase.Catbase()
+
+	bot.loop.create_task(background_task(fb))
+	bot.loop.create_task(background_task_instants(fb))
 	bot.run(bot_constants.DISCORD_TOKEN)

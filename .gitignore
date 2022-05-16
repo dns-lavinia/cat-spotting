@@ -3,6 +3,7 @@
 /cat-spotting/env/
 /cat-spotting/*.xml
 /cat-spotting/*.jpg
+/cat-spotting/.env
 /firebase-api/test_catbase.py
 /firebase-api/__pycache__
 /firebase-api/.env
