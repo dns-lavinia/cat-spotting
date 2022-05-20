@@ -9,6 +9,7 @@ from discord.ext import commands
 # maybe delete these later
 import numpy as np
 import matplotlib.pyplot as plt
+from PIL import Image
 
 import bot_constants
 
@@ -24,15 +25,17 @@ def hex_to_rgb(color_hex):
 	return tuple(int(color_hex[i:i+2], 16) for i in (0, 2, 4))
 
 def generate_color_grid(colors):
-	whiteblankimage = 255 * np.ones(shape=[512, 512, 3], dtype=np.uint8)
+	whiteblankimage = 255 * np.ones(shape=[100, 300, 3], dtype=np.uint8)
 
 	for i in range(3):
 		r, g, b = hex_to_rgb(colors[i])
-		square = 255 * np.ones(shape=[512, 512, 3], dtype=np.uint8)
-		cv2.rectangle(whiteblankimage, pt1=(i*100,100), pt2=((i+1)*100,200), color=(r,g,b), thickness=-1)
-	plt.imshow(whiteblankimage)
+		square = 255 * np.ones(shape=[100, 300, 3], dtype=np.uint8)
+		cv2.rectangle(whiteblankimage, pt1=(i*100,0), pt2=((i+1)*100,100), color=(r,g,b), thickness=-1)
+	plt.imshow(whiteblankimage, aspect='auto')
 
-	plt.show()
+	# convert np array to image and save it
+	im = Image.fromarray(whiteblankimage)
+	im.save(bot_constants.CAT_COLORS_FILE)
 
 
 ################################################################################
@@ -53,11 +56,12 @@ async def once_a_day_stats(fb, target_time):
 
 	total_cats_nb = fb.len_for_table(tb_name)
 	partial_cats_nb = fb.len_for_table(tb_name, yesterday, target_time)
+	peak_hours = fb.get_peak_hours(bot_constants.INSTANTS_TABLE)
 
 	message = f"[{datetime.now().date()}]\n" +\
 				f"- Total 🐈 spotted: {total_cats_nb}\n" +\
 				f"- 🐈 spotted in the last 24 hours: {partial_cats_nb}\n" +\
-				"- Temperature today: 25℃"
+				f"- Cat peak hours: {peak_hours}"
 
 	await bot.wait_until_ready()
 	channel = bot.get_guild(int(bot_constants.GUILD_ID)).get_channel(int(bot_constants.CHANNEL_ID))
@@ -81,23 +85,25 @@ async def cat_instant_stats(fb):
 	docs = fb.query_interval(tb_name, start_time, end_time)
 
 	for key, doc in docs.items():
+		files_to_send = []
 		message = f"[{datetime.now()}]\n" +\
-					f"- Temperature: {doc['temperature']}℃\n" +\
-					f"- Cat colors: {doc['cat_colors']}\n"
+					f"- Temperature: {doc['temperature']}℃"
 
 		# download picture from the cloud
 		# print('Downloading file')
-		fb.download_file(doc['img_filename'], "catto.jpg")
+		fb.download_file(doc['img_filename'], bot_constants.CAT_IMG_FILE)
+		files_to_send.append(discord.File(bot_constants.CAT_IMG_FILE))
 		# print('Finished downloading file')
 
 		# generate cat color palette
 		generate_color_grid(doc['cat_colors'])
+		files_to_send.append(discord.File(bot_constants.CAT_COLORS_FILE))
 
 		# upload to discord
 		await bot.wait_until_ready()
 		channel = bot.get_guild(int(bot_constants.GUILD_ID)).get_channel(int(bot_constants.CHANNEL_ID))
 
-		await channel.send(message, file=discord.File('catto.jpg'))
+		await channel.send(message, files=files_to_send)
 
 
 async def background_task(fb):

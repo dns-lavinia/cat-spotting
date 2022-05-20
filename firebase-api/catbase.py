@@ -66,7 +66,6 @@ class Catbase:
         blob = self.bucket.blob(img_path)
         blob.upload_from_filename(img)
 
-    # def delete_from_table(self, table_name, data):
 
     def download_file(self , src_filename, dst_filename):
         cld_filename = self.cloud_filename + src_filename
@@ -107,5 +106,24 @@ class Catbase:
         docs = ref.where('timestamp', '>=', start_time).where('timestamp', '<=', end_time).stream()
 
         return {doc.id: doc.to_dict() for doc in docs}
+
+
+    def get_peak_hours(self, collection_name):
+        """get_peak_hours will return a list containing three most commom hours
+        for entries in the databse"""
+        hours = { k : 0 for k in range(0, 24)}
+        docs = self.db.collection(collection_name).stream()
+        peak_hours = []
+
+        for doc in docs:
+            data = doc.to_dict()
+
+            hours[data['timestamp'].hour] += 1
+
+        sorted_hours = dict(sorted(hours.items(), key=lambda item: item[1], reverse=1))
+
+        # return top three peak hours
+        return list(sorted_hours.keys())[:3]
+
 
     # def get_img_from_storage():
