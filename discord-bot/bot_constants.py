@@ -12,6 +12,6 @@ GUILD_ID = getenv("CAT_GUILD_ID")
 CHANNEL_ID = getenv("CAT_CHANNEL_ID")
 
 # check every CAT_INSTANT_MINUTES whether new entires were added to the database
-CAT_INSTANT_MINUTES = 5
+CAT_INSTANT_MINUTES = 90
 
 INSTANTS_TABLE = getenv("INSTANTS_TABLE")

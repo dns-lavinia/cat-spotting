@@ -1,4 +1,5 @@
 /discord-bot/.env
+/discord-bot/*.jpg
 /discord-bot/__pycache__
 /cat-spotting/env/
 /cat-spotting/*.xml
@@ -7,3 +8,5 @@
 /firebase-api/test_catbase.py
 /firebase-api/__pycache__
 /firebase-api/.env
+/firebase-api/*.jpg
+/firebase-api/*.json

@@ -1,9 +1,14 @@
 import asyncio
 import discord
 import sys
+import cv2
 
 from datetime import datetime, time, timedelta
 from discord.ext import commands
+
+# maybe delete these later
+import numpy as np
+import matplotlib.pyplot as plt
 
 import bot_constants
 
@@ -14,6 +19,21 @@ import catbase
 
 # consider the prefix for the commands to be '!'
 bot = commands.Bot(command_prefix='!')
+
+def hex_to_rgb(color_hex):
+	return tuple(int(color_hex[i:i+2], 16) for i in (0, 2, 4))
+
+def generate_color_grid(colors):
+	whiteblankimage = 255 * np.ones(shape=[512, 512, 3], dtype=np.uint8)
+
+	for i in range(3):
+		r, g, b = hex_to_rgb(colors[i])
+		square = 255 * np.ones(shape=[512, 512, 3], dtype=np.uint8)
+		cv2.rectangle(whiteblankimage, pt1=(i*100,100), pt2=((i+1)*100,200), color=(r,g,b), thickness=-1)
+	plt.imshow(whiteblankimage)
+
+	plt.show()
+
 
 ################################################################################
 ##### BOT EVENTS
@@ -55,20 +75,36 @@ async def cat_instant_stats(fb):
 		Catbase object used to manipulate firebase data"""
 	tb_name = bot_constants.INSTANTS_TABLE
 
-	message = f"[{datetime.now()}]\n" +\
-				"- Temperature: 30℃"
+	end_time = datetime.utcnow()
+	start_time = end_time - timedelta(minutes=bot_constants.CAT_INSTANT_MINUTES)
 
-	await bot.wait_until_ready()
-	channel = bot.get_guild(int(bot_constants.GUILD_ID)).get_channel(int(bot_constants.CHANNEL_ID))
+	docs = fb.query_interval(tb_name, start_time, end_time)
 
-	await channel.send(message)
+	for key, doc in docs.items():
+		message = f"[{datetime.now()}]\n" +\
+					f"- Temperature: {doc['temperature']}℃\n" +\
+					f"- Cat colors: {doc['cat_colors']}\n"
+
+		# download picture from the cloud
+		# print('Downloading file')
+		fb.download_file(doc['img_filename'], "catto.jpg")
+		# print('Finished downloading file')
+
+		# generate cat color palette
+		generate_color_grid(doc['cat_colors'])
+
+		# upload to discord
+		await bot.wait_until_ready()
+		channel = bot.get_guild(int(bot_constants.GUILD_ID)).get_channel(int(bot_constants.CHANNEL_ID))
+
+		await channel.send(message, file=discord.File('catto.jpg'))
 
 
 async def background_task(fb):
 	now = datetime.utcnow()
 
 	# If the first loop is going to start after the set time
-	# make sure that the stats are not sent right away
+	# make sure that the stats are nott sent right away
 	if now.time() > bot_constants.WHEN_STATS:
 		tomorrow = datetime.combine(now.date() + timedelta(days=1), time(0))
 
@@ -103,15 +139,15 @@ async def background_task_instants(fb):
 	send a message with an image and some additional information"""
 
 	while True:
+		# call the function that sends the stats to the channel
+		await cat_instant_stats(fb)
+
 		now = datetime.utcnow()
 		target_time = now + timedelta(minutes=bot_constants.CAT_INSTANT_MINUTES)
 		seconds_until_target = (target_time - now).total_seconds()
 
 		# sleep until the target is met
 		await asyncio.sleep(seconds_until_target)
-
-		# call the function that sends the stats to the channel
-		await cat_instant_stats(fb)
 
 
 @bot.event

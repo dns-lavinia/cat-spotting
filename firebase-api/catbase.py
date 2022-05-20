@@ -1,7 +1,11 @@
+import firebase_admin
 import pyrebase
+import urllib
 
+from firebase_admin import credentials, storage
+from firebase_admin import firestore
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta
 from os import getenv
 
 # load the variables that keep credentials to connect to firebase
@@ -10,19 +14,14 @@ load_dotenv()
 class Catbase:
     def __init__(self):
         # init the firebase configuration
-        firebaseConfig = {
-          "apiKey": getenv("API_KEY"),
-          "authDomain": getenv("AUTH_DOMAIN"),
-          "databaseURL": getenv("DATABASE_URL"),
-          "projectId": getenv("PROJECT_ID"),
-          "storageBucket": getenv("STORAGE_BUCKET"),
-          "messagingSenderId": getenv("MESSAGING_SENDER_ID"),
-          "appId": getenv("APP_ID")
-        }
+        cred = credentials.Certificate(getenv("CERTIFICATE"))
+        firebase_admin.initialize_app(cred, {
+            'projectId': getenv('PROJECT_ID'),
+            "storageBucket": getenv("STORAGE_BUCKET")
+        })
 
-        self.firebase = pyrebase.initialize_app(firebaseConfig)
-        self.storage = self.firebase.storage()
-        self.db = self.firebase.database()
+        self.db = firestore.client()
+        self.bucket = storage.bucket()
 
         self.cloud_filename = getenv("CLOUD_FILENAME")
         self.fire_email = getenv("FIREBASE_EMAIL")
@@ -39,16 +38,19 @@ class Catbase:
             print("Invalid username or password")
 
 
-    def push_to_table(self, table_name, data):
-        if not table_name:
-            print('table_name is invalid')
+    def push_to_table(self, collection_name, data):
+        if not collection_name:
+            print('collection_name is invalid')
             return
 
         if not data:
             print('data is empty')
             return
 
-        self.db.child(table_name).push(data)
+        cat_doc = 'cat-' + str(datetime.utcnow())
+
+        doc_ref = self.db.collection(collection_name).document(cat_doc)
+        doc_ref.set(data)
 
 
     def store_img(self, img, img_name):
@@ -58,41 +60,52 @@ class Catbase:
         ----------
             img should be a path to a cat image from storage
         """
-
+        # build path to image to be added
         img_path = 'images/' + img_name
 
-        # build path to image to be added
-        self.storage.child(img_path).put(img)
+        blob = self.bucket.blob(img_path)
+        blob.upload_from_filename(img)
 
     # def delete_from_table(self, table_name, data):
 
     def download_file(self , src_filename, dst_filename):
         cld_filename = self.cloud_filename + src_filename
 
-        self.storage.child(cld_filename).download(src_filename, dst_filename)
+        blob = self.bucket.blob(cld_filename)
+
+        urllib.request.urlretrieve(blob.generate_signed_url(timedelta(seconds=300),
+                                                            method='GET'), dst_filename)
 
 
-    def len_for_table(self, table_name, start_time=None, end_time=None):
+    def len_for_table(self, collection_name, start_time=None, end_time=None):
         """ If start_time and end_time are given, return the number of entries
         only for the given time interval"""
 
-        if not table_name:
-            print('table_name is invalid')
+        if not collection_name:
+            print('collection_name is invalid')
             return
 
         if (start_time is not None) and (end_time is not None):
-            rows = self.db.child(table_name).get()
-            r_count = 0
+            ref = self.db.collection(collection_name)
+            docs = ref.where('timestamp', '>=', start_time).where('timestamp', '<=', end_time)
 
-            for r in rows.each():
-                r_time = datetime.strptime(r.val()['timestamp'], '%Y-%m-%d %H:%M:%S.%f')
+            return len(docs.get())
 
-                if start_time < r_time < end_time:
-                    r_count += 1
+        return len(list(self.db.collection(collection_name).get()))
 
-            return r_count
 
-        return len(self.db.child(table_name).get().val())
+    def query_interval(self, collection_name, start_time, end_time):
+        if start_time is None:
+            print('expected starting time for query')
+            return
 
-    # def query(self):
+        if end_time is None:
+            print('expected ending time for query')
+            return
+
+        ref = self.db.collection(collection_name)
+        docs = ref.where('timestamp', '>=', start_time).where('timestamp', '<=', end_time).stream()
+
+        return {doc.id: doc.to_dict() for doc in docs}
+
     # def get_img_from_storage():

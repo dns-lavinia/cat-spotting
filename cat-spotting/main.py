@@ -13,10 +13,25 @@ sys.path.append('../firebase-api/')
 import catbase
 
 
+def rgb_to_hexa(cat_colors):
+    """rgb_to_hexa receives a list of colors in hexadecimal format and returns
+    a list with r, g, b correspondent colors"""
+    top_hex_colors = []
+
+    if len(cat_colors) != 3:
+        print('expected rgb format')
+        return
+
+    for r, g, b in cat_colors:
+        top_hex_colors.append(('{:X}{:X}{:X}').format(r, g, b))
+
+    return top_hex_colors
+
+
 def get_env_stats():
     """This function will gather data from sensors and return a dict with all
     of the information"""
-    return 30
+    return 25
 
 
 def get_cat_colors():
@@ -127,8 +142,8 @@ async def gather_send_data(fb, img, cat_face):
     img_filename = 'img' + str(time_now) + '.jpg'
 
     data = {
-        'timestamp': str(time_now),
-        'cat_colors': cat_colors,
+        'timestamp': time_now,
+        'cat_colors': rgb_to_hexa(cat_colors),
         'temperature': temp,
         'img_filename': img_filename
     }
