@@ -1,5 +1,6 @@
 import numpy as np
 import asyncio
+import serial
 import sys
 import cv2
 
@@ -28,10 +29,33 @@ def rgb_to_hexa(cat_colors):
     return top_hex_colors
 
 
-def get_env_stats():
+def get_env_stats(ser):
     """This function will gather data from sensors and return a dict with all
     of the information"""
-    return 25
+    max_trials = 32
+
+    ser.reset_input_buffer()
+
+    # read until data is give, otherwise, return after 32 trials
+    while max_trials:
+        if ser.is_waiting > 0:
+            line = ser.readline().decode('utf-8').rstrip()
+
+            # If a line seems valid, process it
+            if line.startswith('temperature='):
+                data = re.findall(r'\d+\.\d+', line)
+
+                # could not read both temperature and humidity
+                if (not data) or len(data) != 2:
+                    continue
+
+                return data
+
+            # only try to get data a number of times
+            max_trials -= 1
+
+    # if there was no valid data, just return None
+    return [None, None]
 
 
 def get_cat_colors():
@@ -101,7 +125,7 @@ async def spot_cats():
     cv2.destroyAllWindows()
 
 
-async def gather_send_data(fb, img, cat_face):
+async def gather_send_data(fb, ser, img, cat_face):
     """gather_send_data will upload the detected cat image alongside a few more
     information to firebase
 
@@ -109,6 +133,8 @@ async def gather_send_data(fb, img, cat_face):
     ----------
     fb
         Catbase object used to manipulate firebase data
+    ser
+        The initialized serial communication with the Arduino board
     img
         uncropped image with a detected cat
     cat_face
@@ -136,7 +162,7 @@ async def gather_send_data(fb, img, cat_face):
     cat_colors = [y for (x,y) in get_cat_colors()]
 
     # temperature
-    temp = get_env_stats()
+    temp, hum = get_env_stats(ser)
 
     # create the name of image file to be stored on firebase
     img_filename = 'img' + str(time_now) + '.jpg'
@@ -145,6 +171,7 @@ async def gather_send_data(fb, img, cat_face):
         'timestamp': time_now,
         'cat_colors': rgb_to_hexa(cat_colors),
         'temperature': temp,
+        'humidity': hum,
         'img_filename': img_filename
     }
 
@@ -156,14 +183,22 @@ async def gather_send_data(fb, img, cat_face):
     fb.push_to_table(getenv('INSTANTS_TABLE'), data)
 
 
+def setup():
+    # change the port as needed
+    return serial.Serial('/dev/ttyACM0', 9600, timeout=1)
+
+
 async def main():
     # load the variable from .env
     load_dotenv()
 
+    # setup the arduino connection
+    ser = setup()
+
     fb = catbase.Catbase()
 
     async for img, cat_img in spot_cats():
-        await gather_send_data(fb, img, cat_img)
+        await gather_send_data(fb, ser, img, cat_img)
 
 
 if __name__ == "__main__":
