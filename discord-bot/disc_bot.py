@@ -87,7 +87,8 @@ async def cat_instant_stats(fb):
 	for key, doc in docs.items():
 		files_to_send = []
 		message = f"[{datetime.now()}]\n" +\
-					f"- Temperature: {doc['temperature']}℃"
+					f"- Temperature: {doc['temperature']}℃\n" +\
+					f"- Humidity: {doc['humidity']}%"
 
 		# download picture from the cloud
 		# print('Downloading file')
