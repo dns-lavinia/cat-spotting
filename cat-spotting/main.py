@@ -3,6 +3,7 @@ import asyncio
 import serial
 import sys
 import cv2
+import re
 
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
@@ -38,7 +39,7 @@ def get_env_stats(ser):
 
     # read until data is give, otherwise, return after 32 trials
     while max_trials:
-        if ser.is_waiting > 0:
+        if ser.in_waiting > 0:
             line = ser.readline().decode('utf-8').rstrip()
 
             # If a line seems valid, process it
@@ -185,7 +186,7 @@ async def gather_send_data(fb, ser, img, cat_face):
 
 def setup():
     # change the port as needed
-    return serial.Serial('/dev/ttyACM0', 9600, timeout=1)
+    return serial.Serial('/dev/ttyUSB0', 9600, timeout=1)
 
 
 async def main():

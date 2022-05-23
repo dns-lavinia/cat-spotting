@@ -7,7 +7,7 @@ load_dotenv()
 
 DISCORD_TOKEN = getenv("DISCORD_TOKEN")
 GUILD = getenv("DISCORD_GUILD")
-WHEN_STATS = time(13, 32, 0) # summer time - 3hrs
+WHEN_STATS = time(11, 30, 0) # summer time - 3hrs
 GUILD_ID = getenv("CAT_GUILD_ID")
 CHANNEL_ID = getenv("CAT_CHANNEL_ID")
 
